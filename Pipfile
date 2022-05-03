@@ -1,0 +1,20 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+jupyterlab = "*"
+pandas = "*"
+numpy = "*"
+matplotlib = "*"
+sklearn = "*"
+jupyterlab-vim = "*"
+seaborn = "*"
+pydot = "*"
+dot2tex = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.8"
