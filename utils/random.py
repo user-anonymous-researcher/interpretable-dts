@@ -1,3 +1,6 @@
+"""
+    Utility to generate random colors
+"""
 import random
 
 COLOR_LIST = ['darkorange2',
@@ -102,6 +105,9 @@ COLOR_LIST = ['darkorange2',
 
 
 def random_hsv(iterations=100):
+    """
+    Generate random colors for iterations
+    """
     colors = []
     for it in range(iterations):
         random.seed(it)

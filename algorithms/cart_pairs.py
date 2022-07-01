@@ -1,3 +1,6 @@
+"""
+    Implementation of CART algorithm that optimizes the number of pairs
+"""
 import numpy as np
 import math
 
@@ -11,6 +14,9 @@ class CartPairs(Cart, Algo):
         super().__init__(max_depth, min_samples_stop)
 
     def _get_best_threshold(self, X, y, a, classes_parent, node_pairs, node_product):
+        """
+            Get the best threshold given an attribute.
+        """
         m = y.size  # tirar
         thresholds, classes_thr = zip(*sorted(zip(X[:, a], y)))
         classes_left = [0] * self.n_classes_

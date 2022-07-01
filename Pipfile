@@ -4,15 +4,15 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-jupyterlab = "*"
-pandas = "*"
-numpy = "*"
-matplotlib = "*"
-sklearn = "*"
-jupyterlab-vim = "*"
-seaborn = "*"
-pydot = "*"
 dot2tex = "*"
+jupyterlab = "*"
+jupyterlab-vim = "*"
+matplotlib = "*"
+numpy = "*"
+pandas = "*"
+pydot = "*"
+seaborn = "*"
+sklearn = "*"
 
 [dev-packages]
 

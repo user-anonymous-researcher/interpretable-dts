@@ -1,4 +1,6 @@
-"""Binary tree with decision tree semantics and ASCII visualization."""
+"""
+    Binary tree with decision tree semantics and ASCII visualization.
+"""
 import copy
 import dot2tex as d2t
 from pathlib import Path
@@ -37,15 +39,27 @@ class Node:
         self.pruned_class = None  # For pruning
 
     def get_node_depth(self):
+        """
+            Get node depth
+        """
         # Assert that get_explainability_metrics was previously run
         return sum(x for x in self.feature_index_occurrences)
 
     def get_node_explainability(self):
+        """
+            Get node explability: Number of distinct features in path to leaf
+        """
         # Path to node less the redundant nodes
         # Assert that get_explainability_metrics was previously run
-        return sum(abs(x) for x in self.feature_index_occurrences_redundant)
+        # return sum(abs(x) for x in self.feature_index_occurrences_redundant)
+
+        # Now node explainability is the number of distinct features in path to leaf
+        return sum([1 for i in self.feature_index_occurrences if i])
 
     def get_next_feature_occurrences_redundant(self, idx, direction):
+        """
+            Get next feature redundant ocurrences given attribute and direction (left or right)
+        """
         if direction != 'right' and direction != 'left':
             raise ValueError("Value of direction not permitted: ", direction)
 
@@ -81,6 +95,9 @@ class Node:
             print(line)
 
     def _debug_aux(self, feature_names, class_names, show_details, root=False):
+        """
+            Auxiliary funcion to print ASCII visualization of the tree.
+        """
         # See https://stackoverflow.com/a/54074933/1143396 for similar code.
         is_leaf = not self.right
         if is_leaf:
@@ -140,6 +157,9 @@ class Node:
         return lines, n + m + width, max(p, q) + 2 + len(top_lines), middle
 
     def debug_pydot(self, output_file: str):
+        """
+            Print tree with latex format
+        """
         pydot_graph = pydot.Dot("tree", graph_type="digraph", dpi=300)
 
         def get_node_name(node):
@@ -148,8 +168,8 @@ class Node:
 
         def get_pydot_node(node):
             node_name = get_node_name(node)
-            fill_color = "none" if not node.left and not node.right else COLOR_LIST[node.feature_index]
-            # fill_color = "gold" if not node.left and not node.right else "none"
+            # fill_color = "none" if not node.left and not node.right else COLOR_LIST[node.feature_index]
+            fill_color = "gold" if not node.left and not node.right else "none"
 
             threshold = str(round(node.threshold, 3) + 0) if node.left or node.right else None
             # Scientific values for small numbers
@@ -158,12 +178,9 @@ class Node:
                 threshold = "0.00"
             elif node.threshold is not None:
                 threshold = str(round(node.threshold, 2))
-            if node.left or node.right:
-                tex_label = f"$D{node.feature_index} \\leq " + threshold + "$" if node.left or node.right \
-                    else "$\\begin{matrix}" + "\\text{Samples: }" + str(node.num_samples) + "\\\\" + \
-                         "\\text{Class: }" + str(node.predicted_class) + "\\end{matrix}$"
-            else:
-                tex_label = " "
+            tex_label = f"$D{node.feature_index} \\leq " + threshold + "$" if node.left or node.right \
+                else "$\\begin{matrix}" + "\\text{Samples: }" + str(node.num_samples) + "\\\\" + \
+                     "\\text{Class: }" + str(node.predicted_class) + "\\end{matrix}$"
             return pydot.Node(node_name, shape="box", fillcolor=fill_color, style="filled", texlbl=tex_label,
                               align="left", width=1.0)
 
@@ -203,6 +220,12 @@ class Node:
                         output_file])
 
     def get_explainability_metrics(self, num_features):
+        """
+            Get explainability metrics.
+            Returns:
+            number of unbalanced nodes, max_depth, max_redundant_depth, wad, waes, nodes and distinct_features
+
+        """
         wad_by_node = []  # Weighted Path by leaf. List of pairs (depth, num_samples)
         waes_by_node = []  # Same as wad_by_node but discarding redundant features
         nodes_number_metric = [0]
@@ -276,6 +299,10 @@ class Node:
         return unbalanced, max_depth, max_redundant_depth, wad, waes, nodes, distinct_features
 
     def get_pruned_tree(self):
+        """
+            Returns pruned tree
+        """
+
         def get_node_class(node):
             """
             Returns -1 if there is more than one class attributed in the subtree induced by node

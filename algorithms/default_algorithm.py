@@ -1,3 +1,6 @@
+"""
+    Base Algorithm to derive others
+"""
 import numpy as np
 import tree.tree as tree
 
@@ -27,6 +30,7 @@ class DefaultClassifier:
         return [self._predict(inputs) for inputs in X]
 
     def score(self, X, y):
+        """ Calculates score accuracy """
         correct = 0
         predicted_labels = self.predict(X)
         for i in range(len(y)):
@@ -58,19 +62,34 @@ class DefaultClassifier:
         return node.predicted_class
 
     def get_score(self, X_train, y_train, X_test, y_test, modified_factor=1, gamma_factor=None, pruning=False):
+        """
+        Get score accuracy
+        """
         self.fit(X_train, y_train, modified_factor=modified_factor, gamma_factor=gamma_factor, pruning=pruning)
         return round(self.score(X_train, y_train), 3), round(self.score(X_test, y_test), 3)
 
     def get_score_without_fit(self, X_train, y_train, X_test, y_test):
+        """
+        Get score without fitting
+        """
         return round(self.score(X_train, y_train), 3), round(self.score(X_test, y_test), 3)
 
     def get_explainability_metrics(self):
+        """
+        Get exaplanaibility metrics
+        """
         # Returns unbalanced_splits, max_depth, max_depth_redundant, wad, waes, nodes, distinct features
         return self.tree_.get_explainability_metrics(self.n_features_)
 
     def _best_split(self, X, y, feature_index_occurrences=None, modified_factor=1):
+        """
+         Find the next split for a node.
+        """
         raise NotImplementedError()
 
     def _grow_tree(self, X, y, depth=0, feature_index_occurrences=None, modified_factor=1, calculate_gini=True,
                    gamma_factor=None):
+        """
+            Build a decision tree by recursively finding the best split.
+        """
         raise NotImplementedError()

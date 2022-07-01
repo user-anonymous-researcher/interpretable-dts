@@ -1,3 +1,6 @@
+"""
+    Utilities to manage files
+"""
 from pathlib import Path
 
 

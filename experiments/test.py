@@ -1,3 +1,7 @@
+"""
+    Base Test Class with utilities
+
+"""
 from enum import Enum
 import json
 from matplotlib.pyplot import figure
@@ -15,6 +19,9 @@ from utils.file_utils import create_dir
 
 
 class MetricType(Enum):
+    """
+        Possible metrics for a test
+    """
     gini_factor = "gini_factor"
     gamma_factor = "gamma"
     train_accuracy = "train_accuracy"
@@ -46,6 +53,9 @@ class Metrics:
         self.execution_time = execution_time
 
     def get_metrics(self):
+        """
+            Get metrics for the test
+        """
         return {
             MetricType.gini_factor: self.gini_factor,
             MetricType.gamma_factor: self.gamma_factor,
@@ -63,6 +73,9 @@ class Metrics:
 
     @staticmethod
     def get_cols():
+        """
+            Return names of metrics
+        """
         return [MetricType.gini_factor.value,
                 MetricType.gamma_factor.value,
                 MetricType.train_accuracy.value,
@@ -78,6 +91,8 @@ class Metrics:
 
 
 class ResultJson:
+    """Class to manage json result"""
+
     def __init__(self, dataset, algorithm, max_depth_stop, min_samples_stop, results):
         self.dataset = dataset
         self.algorithm = algorithm
@@ -87,6 +102,7 @@ class ResultJson:
 
     @staticmethod
     def get_cols():
+        """Get columns that appear in json result"""
         return ["dataset", "algorithm", "max_depth_stop", "min_samples_stop"]
 
     def get_result_json(self):
@@ -101,7 +117,11 @@ class ResultJson:
 
 
 class Test:
-    def __init__(self, classifier, dataset_name: str, csv_file: str, max_depth_stop: int,
+    """
+        Base class to run and save tests
+    """
+
+    def __init__(self, classifier, dataset_name: str, csv_file: str, max_depth_stop,
                  col_class_name: str, cols_to_delete: list = None, min_samples_stop: int = 0,
                  gini_factors=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.91, 0.92, 0.93, 0.94, 0.95, 0.96,
                                0.97, 0.98, 0.99, 1), gamma_factors=(0.5, 0.6, 0.7, 0.8, 0.9), results_folder="results"):
@@ -123,6 +143,9 @@ class Test:
 
     def _get_filename(self, extension: str, gini_factor: float = None, gamma_factor: float = None,
                       sub_folder=None, iteration=None) -> str:
+        """
+            Get filename to save result
+        """
         folder = f"{self.results_folder}/{sub_folder}" if sub_folder else f"{self.results_folder}"
         filename = f"{folder}/{self.dataset_name}_{self.classifier.__name__}_depth_{self.max_depth_stop}" \
                    f"_samples_{self.min_samples_stop}"
@@ -137,6 +160,9 @@ class Test:
         return filename
 
     def _plot_graphic(self):
+        """
+            Plot graphic for tests
+        """
         factors = [metric[MetricType.gini_factor] for metric in self.results]
         train_accuracy_list = [metric[MetricType.train_accuracy] for metric in self.results]
         test_accuracy_list = [metric[MetricType.test_accuracy] for metric in self.results]
@@ -166,6 +192,9 @@ class Test:
         plt.savefig(filename)
 
     def _store_results(self, iteration=0):
+        """
+            Store results in json for iteration
+        """
         filename: str = self._get_filename("json", sub_folder="json", iteration=iteration)
         result_json = {
             'dataset': self.dataset_name,
@@ -212,6 +241,9 @@ class Test:
         return diff_results
 
     def parse_dataset(self):
+        """
+            Read CSV and clean dataset
+        """
         # Read CSV
         np.set_printoptions(suppress=True)
         data = pd.read_csv(self.csv_file)
@@ -234,10 +266,15 @@ class Test:
 
     @staticmethod
     def split_train_test(X, y, random_state=42, train_size=0.7):
+        """
+            Create train and test sets
+        """
         X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=random_state, train_size=train_size)
         return X_train, X_test, y_train, y_test
 
     def run(self, store_results=True, plot_graphic=False, debug=False, iteration=0, pruning=True):
+        """ Run the tests and store results"""
+
         print("\n#######################################################################")
         print(f"### Running tests for {self.dataset_name} with {self.classifier.__name__}, "
               f"max_depth {self.max_depth_stop}, min_samples_stop {self.min_samples_stop}")
@@ -311,6 +348,9 @@ class Test:
     @staticmethod
     def load_test_from_pickle(pickle_filepath, csv_file=None, col_class_name=None, cols_to_delete=None,
                               results_folder="results"):
+        """
+            Load test from pickle file
+        """
         final_slash_idx = pickle_filepath.rfind("/")
         pickle_filename = pickle_filepath[final_slash_idx + 1:]
         pickle_info = pickle_filename.replace(".pickle", "").split("_")
@@ -322,6 +362,8 @@ class Test:
         min_samples_stop = pickle_info[min_samples_stop_index + 1]
         gini_factor_index = pickle_info.index("gini-factor")
         gini_factor = float(pickle_info[gini_factor_index + 1])
+        iteration_index = pickle_info.index("iteration")
+        iteration = float(pickle_info[iteration_index + 1])
         try:
             gamma_factor_index = pickle_info.index("gamma")
             gamma = float(pickle_info[gamma_factor_index + 1])
@@ -344,4 +386,4 @@ class Test:
                         min_samples_stop=min_samples_stop, gini_factors=[gini_factor], gamma_factors=[gamma],
                         results_folder=results_folder)
             test.clf_obj = clf_obj
-            return test
+            return test, iteration

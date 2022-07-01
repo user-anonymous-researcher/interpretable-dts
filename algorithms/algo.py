@@ -1,3 +1,6 @@
+"""
+    This file contains SER-DT Algorithm with methods for fitting the tree.
+"""
 import math
 import numpy as np
 
@@ -98,6 +101,9 @@ class Algo(DefaultClassifier):
         return max_cost
 
     def _get_best_threshold(self, X, y, a, classes_parent, node_pairs, node_product, gamma_factor):
+        """
+            Get the best threshold given an attribute.
+        """
         m = y.size
         thresholds, classes_thr = zip(*sorted(zip(X[:, a], y)))
         classes_left = [0] * self.n_classes_
@@ -210,6 +216,9 @@ class Algo(DefaultClassifier):
 
     def _create_node(self, y, feature_index=None, threshold=None, feature_index_occurrences=None, calculate_gini=True,
                      balanced_split=None):
+        """
+            Create a Tree node given parameters.
+        """
         num_samples_per_class = [np.sum(y == i) for i in range(self.n_classes_)]
         predicted_class = np.argmax(num_samples_per_class)
         node = tree.Node(
@@ -228,9 +237,10 @@ class Algo(DefaultClassifier):
 
     def _grow_tree(self, X, y, depth=0, feature_index_occurrences=None, modified_factor=1, calculate_gini=False,
                    father_feature=None, gamma_factor=2 / 3):
-        """Build a decision tree by recursively finding the best split."""
-        # Population for each class in current node. The predicted class is the one with
-        # largest population.
+        """
+            Build a decision tree by recursively finding the best split.
+        """
+        # Population for each class in current node. The predicted class is the one with the largest population.
         node = self._create_node(y, feature_index_occurrences=feature_index_occurrences, calculate_gini=calculate_gini)
 
         # Split recursively until maximum depth is reached.
@@ -291,7 +301,9 @@ class Algo(DefaultClassifier):
         return node
 
     def fit(self, X, y, modified_factor=1, gamma_factor=2 / 3, pruning=False):
-        """Build decision tree classifier."""
+        """
+            Build decision tree classifier.
+        """
         self.n_classes_ = len(set(y))  # classes are assumed to go from 0 to n-1
         self.n_samples = len(y)
         self.n_features_ = X.shape[1]

@@ -1,3 +1,6 @@
+"""
+    Main file to run tests
+"""
 import csv
 import json
 import matplotlib.pyplot as plt
@@ -11,13 +14,19 @@ import pickle
 from experiments.test import MetricType, Test, ResultJson, Metrics
 from algorithms.cart import Cart
 from algorithms.algo_with_gini import AlgoWithGini
+from algorithms.algo_info_gain import AlgoInfoGain
+from algorithms.c45 import C45
 from tree.tree import Node
 from utils.file_utils import create_dir
 
+# Folder to save results
 RESULTS_FOLDER = "results"
 
 
 def change_all_jsons(results_folder):
+    """
+    Change all json inside a folder
+    """
     files = [f for f in listdir(results_folder) if isfile(join(results_folder, f))]
     json_files = [f for f in files if 'json' in f]
 
@@ -83,6 +92,9 @@ def plot_opt_table(bins=False):
 
 
 def create_bins(csv_file, bins=10, cols_to_remove=None):
+    """
+        Discretize dataset
+    """
     data = pd.read_csv(csv_file)
     cols = data.columns
     cols = [col for col in cols if col not in cols_to_remove]
@@ -102,11 +114,14 @@ def create_bins(csv_file, bins=10, cols_to_remove=None):
 
 
 def save_pruned_trees(pickle_dir, pruned_dir):
+    """
+        Save pruned trees
+    """
     files = [f for f in listdir(pickle_dir) if isfile(join(pickle_dir, f))]
     pickle_files = [f for f in files if 'pickle' in f]
     for pickle_filename in pickle_files:
         print(f"### Punning tree {pickle_filename}")
-        test = Test.load_test_from_pickle(f"{pickle_dir}/{pickle_filename}")
+        test, _ = Test.load_test_from_pickle(f"{pickle_dir}/{pickle_filename}")
         clf_obj = test.clf_obj
         tree_obj: Node = clf_obj.tree_
         pruned_tree = tree_obj.get_pruned_tree()
@@ -117,6 +132,9 @@ def save_pruned_trees(pickle_dir, pruned_dir):
 
 
 def generate_consolidates_csv(csv_file, result_dir, load_from="json", ds_by_name: dict = None):
+    """
+        Generates consolidate csv with all metrics for datasets
+    """
     files = [f for f in listdir(result_dir) if isfile(join(result_dir, f))]
     test_info_header = ResultJson.get_cols()
     metrics_header = Metrics.get_cols()
@@ -142,19 +160,20 @@ def generate_consolidates_csv(csv_file, result_dir, load_from="json", ds_by_name
         pickle_files = sorted(pickle_files)
         rows = []
         for pickle_filename in pickle_files:
-            test = Test.load_test_from_pickle(f"{result_dir}/{pickle_filename}")
+            test, iteration = Test.load_test_from_pickle(f"{result_dir}/{pickle_filename}")
             test.csv_file = ds_by_name[test.dataset_name]['csv']
             test.col_class_name = ds_by_name[test.dataset_name]['col_class']
             clf_obj = test.clf_obj
             tree_obj = clf_obj.tree_
             num_features = len(tree_obj.feature_index_occurrences)
             clf_name = clf_obj.__class__.__name__
+            pickle_info = pickle_filename.replace(".pickle", "").split("_")
             print(f"### Generating results for {test.dataset_name} with {clf_name}, "
                   f"max_depth {test.max_depth_stop}, min_samples_stop {test.min_samples_stop}, "
-                  f"gini factor {test.gini_factors[0]} and gamma {test.gamma_factors[0]}")
+                  f"gini factor {test.gini_factors[0]}, gamma {test.gamma_factors[0]} and iteration {iteration}")
 
             X, y = test.parse_dataset()
-            X_train, X_test, y_train, y_test = test.split_train_test(X, y)
+            X_train, X_test, y_train, y_test = test.split_train_test(X, y, random_state=iteration)
             score_train, score_test = clf_obj.get_score_without_fit(X_train, y_train, X_test, y_test)
             metrics = tree_obj.get_explainability_metrics(num_features)
             row = [test.dataset_name, clf_name, test.max_depth_stop, test.min_samples_stop, test.gini_factors[0],
@@ -194,6 +213,9 @@ def one_hot_encoding(csv_file, categorical_cols=None, cols_to_remove=None):
 
 
 if __name__ == "__main__":
+    """
+        Main section
+    """
     datasets = [
         # name, path, col_class_name, categorical_cols, cols_to_delete
         ['anuran', '../data/anuran/anuran_formatted.csv', 'Family', [], ['Genus', 'Species', 'RecordID']],
@@ -261,7 +283,7 @@ if __name__ == "__main__":
     #     one_hot_encoding(ds[1], ds[4], ds[5])
 
     all_datasets = sorted(datasets, key=lambda x: (x[0], x[2]))
-    depths = [6]
+    depths = [4, 5]
     min_samples_list = [0]
     iterations = range(1, 11)
 
@@ -277,9 +299,17 @@ if __name__ == "__main__":
                                  results_folder="results/cart", gamma_factors=[None], gini_factors=[1])
                     test2 = Test(classifier=AlgoWithGini, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
                                  col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
-                                 results_folder="results/algo_gini", gamma_factors=[2/3])
-                    # test1.run(debug=False, iteration=it, pruning=True)
-                    test2.run(debug=False, iteration=it, pruning=True)
+                                 results_folder="results/algo_gini", gamma_factors=[0.5], gini_factors=[0.97])
+                    test3 = Test(classifier=AlgoInfoGain, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
+                                 col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
+                                 results_folder="results/algo_info_gain", gamma_factors=[0.5], gini_factors=[0.97])
+                    test4 = Test(classifier=C45, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
+                                 col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
+                                 results_folder="results/c45", gamma_factors=[None], gini_factors=[1])
+                    test1.run(debug=True, iteration=it, pruning=True)
+                    test2.run(debug=True, iteration=it, pruning=True)
+                    test3.run(debug=False, iteration=it, pruning=True)
+                    test4.run(debug=False, iteration=it, pruning=True)
 
     datasets_by_name = {
         ds[0]: {
@@ -295,9 +325,15 @@ if __name__ == "__main__":
                               load_from="json")
     generate_consolidates_csv("results/consolidated/algo_gini_experiments.csv", "results/algo_gini/json",
                               load_from="json")
-    # generate_consolidates_csv("results/consolidated/cart_experiments.csv", "results/cart/pickle_pruned",
+    # generate_consolidates_csv("results/consolidated/algo_info_gain_experiments.csv", "results/algo_info_gain/json",
+    #                           load_from="json")
+    # generate_consolidates_csv("results/consolidated/c45_experiments.csv", "results/c45/json",
+    #                           load_from="json")
+
+    # Pickle
+    # generate_consolidates_csv("results/consolidated/cart_experiments.csv", "results/cart/pickle",
     #                           load_from="pickle", ds_by_name=datasets_by_name)
-    # generate_consolidates_csv("results/consolidated/algo_gini_experiments.csv", "results/algo_gini/pickle_pruned",
+    # generate_consolidates_csv("results/consolidated/algo_gini_experiments.csv", "results/algo_gini/pickle",
     #                           load_from="pickle", ds_by_name=datasets_by_name)
 
     # plot_opt_table(bins=False)
