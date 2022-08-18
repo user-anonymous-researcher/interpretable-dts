@@ -3,6 +3,7 @@
 """
 import csv
 import json
+import math
 import matplotlib.pyplot as plt
 import numpy as np
 from os import listdir
@@ -16,6 +17,7 @@ from algorithms.cart import Cart
 from algorithms.algo_with_gini import AlgoWithGini
 from algorithms.algo_info_gain import AlgoInfoGain
 from algorithms.c45 import C45
+from algorithms.ec2 import EC2
 from tree.tree import Node
 from utils.file_utils import create_dir
 
@@ -170,6 +172,7 @@ def generate_consolidates_csv(csv_file, result_dir, load_from="json", ds_by_name
             pickle_info = pickle_filename.replace(".pickle", "").split("_")
             print(f"### Generating results for {test.dataset_name} with {clf_name}, "
                   f"max_depth {test.max_depth_stop}, min_samples_stop {test.min_samples_stop}, "
+                  f"min_samples_frac {test.min_samples_frac}, "
                   f"gini factor {test.gini_factors[0]}, gamma {test.gamma_factors[0]} and iteration {iteration}")
 
             X, y = test.parse_dataset()
@@ -283,33 +286,45 @@ if __name__ == "__main__":
     #     one_hot_encoding(ds[1], ds[4], ds[5])
 
     all_datasets = sorted(datasets, key=lambda x: (x[0], x[2]))
-    depths = [4, 5]
+    depths = [6]
     min_samples_list = [0]
-    iterations = range(1, 11)
+    min_samples_frac_list = [None]
+    iterations = range(1, 2)
 
     # Run tests
     for it in iterations:
         for ds in all_datasets:
             for depth in depths:
                 for min_samples_stop in min_samples_list:
-                    # algo_name, path, col_class_name, categorical_cols, cols_to_delete
-                    # Cols to deleted was already deleted
-                    test1 = Test(classifier=Cart, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
-                                 col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
-                                 results_folder="results/cart", gamma_factors=[None], gini_factors=[1])
-                    test2 = Test(classifier=AlgoWithGini, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
-                                 col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
-                                 results_folder="results/algo_gini", gamma_factors=[0.5], gini_factors=[0.97])
-                    test3 = Test(classifier=AlgoInfoGain, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
-                                 col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
-                                 results_folder="results/algo_info_gain", gamma_factors=[0.5], gini_factors=[0.97])
-                    test4 = Test(classifier=C45, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
-                                 col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
-                                 results_folder="results/c45", gamma_factors=[None], gini_factors=[1])
-                    test1.run(debug=True, iteration=it, pruning=True)
-                    test2.run(debug=True, iteration=it, pruning=True)
-                    test3.run(debug=False, iteration=it, pruning=True)
-                    test4.run(debug=False, iteration=it, pruning=True)
+                    for min_samples_frac in min_samples_frac_list:
+                        # algo_name, path, col_class_name, categorical_cols, cols_to_delete
+                        # Cols to deleted was already deleted
+                        test1 = Test(classifier=Cart, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
+                                     col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
+                                     min_samples_frac=min_samples_frac,
+                                     results_folder="results/cart", gamma_factors=[None], gini_factors=[1])
+                        test2 = Test(classifier=AlgoWithGini, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
+                                     col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
+                                     min_samples_frac=min_samples_frac,
+                                     results_folder="results/algo_gini", gamma_factors=[0.5], gini_factors=[0.99])
+                        test3 = Test(classifier=AlgoInfoGain, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
+                                     col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
+                                     min_samples_frac=min_samples_frac,
+                                     results_folder="results/algo_info_gain", gamma_factors=[0.5], gini_factors=[0.97])
+                        test4 = Test(classifier=C45, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
+                                     col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
+                                     min_samples_frac=min_samples_frac,
+                                     results_folder="results/c45", gamma_factors=[None], gini_factors=[1])
+                        test5 = Test(classifier=EC2, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
+                                     col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
+                                     min_samples_frac=min_samples_frac,
+                                     results_folder="results/ec2", gamma_factors=[None], gini_factors=[1])
+
+                        # test1.run(debug=True, iteration=it, pruning=True)
+                        # test2.run(debug=False, iteration=it, pruning=True)
+                        # test3.run(debug=False, iteration=it, pruning=True)
+                        # test4.run(debug=False, iteration=it, pruning=True)
+                        test5.run(debug=True, iteration=it, pruning=False)
 
     datasets_by_name = {
         ds[0]: {
@@ -318,16 +333,15 @@ if __name__ == "__main__":
         }
         for ds in datasets}
 
-    # save_pruned_trees("results/cart/pickle", "results/cart/pickle_pruned")
-    # save_pruned_trees("results/algo_gini/pickle", "results/algo_gini/pickle_pruned")
-
-    generate_consolidates_csv("results/consolidated/cart_experiments.csv", "results/cart/json",
-                              load_from="json")
-    generate_consolidates_csv("results/consolidated/algo_gini_experiments.csv", "results/algo_gini/json",
-                              load_from="json")
+    # generate_consolidates_csv("results/consolidated/cart_experiments.csv", "results/cart/json",
+    #                           load_from="json")
+    # generate_consolidates_csv("results/consolidated/algo_gini_experiments.csv", "results/algo_gini/json",
+    #                           load_from="json")
     # generate_consolidates_csv("results/consolidated/algo_info_gain_experiments.csv", "results/algo_info_gain/json",
     #                           load_from="json")
     # generate_consolidates_csv("results/consolidated/c45_experiments.csv", "results/c45/json",
+    #                           load_from="json")
+    # generate_consolidates_csv("results/consolidated/ec2_experiments.csv", "results/ec2/json",
     #                           load_from="json")
 
     # Pickle

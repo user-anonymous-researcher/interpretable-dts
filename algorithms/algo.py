@@ -55,6 +55,36 @@ class Algo(DefaultClassifier):
             i += 1
         return count
 
+    @staticmethod
+    def _number_pairs_threshold(y, threshold):
+        """
+        Returns the number of pairs that have different classes
+        """
+        pairs_left = 0
+        pairs_left_right = 0
+        pairs_right = 0
+
+        n = len(y)
+
+        y_sorted = sorted(y)
+        nodes_left = len([el for el in y if el <= threshold])
+        nodes_right = n - nodes_left
+
+        i = 1
+        j = 0
+        while i < n:
+            while i < n and y_sorted[i] == y_sorted[i - 1]:
+                i += 1
+            if j <= threshold:
+                pairs_left += (i - j) * (nodes_left - i)
+                pairs_left_right += (i - j) * nodes_right
+            else:
+                pairs_right += (i - j) *  (n - i)
+
+            j = i
+            i += 1
+        return pairs_left, pairs_left_right, pairs_right
+
     def _get_best_threshold_old(self, X, y, a):
         """
         Get threshold that minimizes _cost for attribute a. Also, returns that cost and all thresholds

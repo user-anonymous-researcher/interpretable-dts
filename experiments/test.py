@@ -123,6 +123,7 @@ class Test:
 
     def __init__(self, classifier, dataset_name: str, csv_file: str, max_depth_stop,
                  col_class_name: str, cols_to_delete: list = None, min_samples_stop: int = 0,
+                 min_samples_frac: float = None,
                  gini_factors=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.91, 0.92, 0.93, 0.94, 0.95, 0.96,
                                0.97, 0.98, 0.99, 1), gamma_factors=(0.5, 0.6, 0.7, 0.8, 0.9), results_folder="results"):
         self.classifier = classifier
@@ -133,6 +134,7 @@ class Test:
         self.cols_to_delete = cols_to_delete
         self.max_depth_stop = max_depth_stop
         self.min_samples_stop = min_samples_stop
+        self.min_samples_frac = min_samples_frac
         self.results_folder = results_folder
         self.gini_factors = gini_factors
         self.gamma_factors = gamma_factors
@@ -148,7 +150,7 @@ class Test:
         """
         folder = f"{self.results_folder}/{sub_folder}" if sub_folder else f"{self.results_folder}"
         filename = f"{folder}/{self.dataset_name}_{self.classifier.__name__}_depth_{self.max_depth_stop}" \
-                   f"_samples_{self.min_samples_stop}"
+                   f"_samples_{self.min_samples_stop}_samples-frac_{self.min_samples_frac}"
         if gini_factor:
             filename += f"_gini-factor_{gini_factor}"
         if gamma_factor:
@@ -242,7 +244,8 @@ class Test:
 
     def parse_dataset(self):
         """
-            Read CSV and clean dataset
+            Read CSV and clean dataset.
+            Set min_samples_stop if min_samples_frac is set
         """
         # Read CSV
         np.set_printoptions(suppress=True)
@@ -260,8 +263,10 @@ class Test:
         data[self.col_class_name] = data[self.col_class_name].rank(method='dense', ascending=False).astype(int)
 
         X = data.drop(labels=self.col_class_name, axis=1).to_numpy()
-        y = data[self.col_class_name].astype('int').to_numpy() - 1
+        y = data[self.col_class_name].astype('int64').to_numpy() - 1
 
+        if self.min_samples_frac:
+            self.min_samples_stop = self.min_samples_frac * len(y)
         return X, y
 
     @staticmethod
@@ -277,7 +282,8 @@ class Test:
 
         print("\n#######################################################################")
         print(f"### Running tests for {self.dataset_name} with {self.classifier.__name__}, "
-              f"max_depth {self.max_depth_stop}, min_samples_stop {self.min_samples_stop}")
+              f"max_depth {self.max_depth_stop}, min_samples_stop {self.min_samples_stop}, "
+              f"min_samples_frac {self.min_samples_frac}")
         if iteration:
             print("Iteration", iteration)
 
