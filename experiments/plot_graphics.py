@@ -64,7 +64,7 @@ def plot_factor_graphics(csf_file, output_file, col, y_label):
     plt.savefig(output_file, bbox_inches='tight')
 
 
-def plot_trees(results_dir, pickle_filename=None, pickle_dir=None, pruned=False):
+def plot_trees(results_dir, pickle_filename=None, pickle_dir=None, post_pruned=False):
     """
         Plot trees in folder specified
     """
@@ -77,11 +77,16 @@ def plot_trees(results_dir, pickle_filename=None, pickle_dir=None, pruned=False)
         pickle_files = sorted(pickle_files)
     for pickle_file in pickle_files:
         print(f"### Generate image for tree {pickle_file}")
-        test, iteration = Test.load_test_from_pickle(pickle_file, results_folder=results_dir)
-        sub_folder = "img" if not pruned else "img_pruned"
+        test = Test.load_test_from_pickle(pickle_file, results_folder=results_dir)
+        if post_pruned:
+            sub_folder = "img_post_pruned"
+            test.post_pruning = True
+        else:
+            test.post_pruning = False
+            sub_folder = "img"
+
         tree_img_file = test._get_filename(extension="png", gini_factor=test.gini_factors[0],
-                                           gamma_factor=test.gamma_factors[0], sub_folder=sub_folder,
-                                           iteration=iteration)
+                                           gamma_factor=test.gamma_factors[0], sub_folder=sub_folder)
         test.clf_obj.tree_.debug_pydot(tree_img_file)
         print("---------")
 
@@ -149,15 +154,19 @@ if __name__ == "__main__":
     # plot_factor_graphics("results/consolidated/algo_gini_experiments.csv", "results/consolidated/features_factors.jpg",
     #                      "features", "Features")
 
-    plot_boxplot("results/consolidated/experiments.csv", "results/consolidated/boxplot_accuracy.jpg", 'test_accuracy',
-                 "Test Accuracy", use_tex=True)
-    plot_boxplot("results/consolidated/experiments.csv", "results/consolidated/boxplot_waes.jpg", 'waes',
-                 "\\texttt{expl\\textsubscript{avg}}",
-                 use_tex=True)
+    # plot_boxplot("results/consolidated/experiments.csv", "results/consolidated/boxplot_accuracy.jpg", 'test_accuracy',
+    #              "Test Accuracy", use_tex=True)
+    # plot_boxplot("results/consolidated/experiments.csv", "results/consolidated/boxplot_waes.jpg", 'waes',
+    #              "\\texttt{expl\\textsubscript{avg}}",
+    #              use_tex=True)
 
-    # plot_trees(
-    #     pickle_filename="results/algo_gini/pickle_pruned/sensorless_AlgoWithGini_depth_4_samples_0_gini-factor_0.97_gamma_0.9.pickle",
-    #     results_dir="results/algo_gini", pruned=True)
+    filename = "obs network_AlgoWithGini_depth_6_samples_0_gini-factor_0.94_gamma_0.5_iteration_3.pickle"
+    plot_trees(
+        pickle_filename=f"results/algo_gini/pickle_post_pruned/{filename}",
+        results_dir="results/algo_gini", post_pruned=True)
+    plot_trees(
+        pickle_filename=f"results/algo_gini/pickle/{filename}",
+        results_dir="results/algo_gini", post_pruned=False)
     # plot_trees(
     #     pickle_filename="results/algo_gini/pickle/banknote_AlgoWithGini_depth_6_samples_0_gini-factor_1_gamma_0.5_iteration_1.pickle",
     #     results_dir="results/algo_gini", pruned=True)

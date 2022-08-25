@@ -37,6 +37,7 @@ class Node:
         self.right = None
 
         self.pruned_class = None  # For pruning
+        self.post_pruning = None  # For post-pruning
 
     def get_node_depth(self):
         """

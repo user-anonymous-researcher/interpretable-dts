@@ -4,8 +4,6 @@
 """
 from enum import Enum
 import json
-from matplotlib.pyplot import figure
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pickle
@@ -125,7 +123,8 @@ class Test:
                  col_class_name: str, cols_to_delete: list = None, min_samples_stop: int = 0,
                  min_samples_frac: float = None,
                  gini_factors=(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.91, 0.92, 0.93, 0.94, 0.95, 0.96,
-                               0.97, 0.98, 0.99, 1), gamma_factors=(0.5, 0.6, 0.7, 0.8, 0.9), results_folder="results"):
+                               0.97, 0.98, 0.99, 1), gamma_factors=(0.5, 0.6, 0.7, 0.8, 0.9), results_folder="results",
+                 iteration=0, pruning=True, post_pruning=False):
         self.classifier = classifier
         self.clf_obj = None  # in case of pickle
         self.dataset_name = dataset_name
@@ -138,66 +137,38 @@ class Test:
         self.results_folder = results_folder
         self.gini_factors = gini_factors
         self.gamma_factors = gamma_factors
+        self.iteration = iteration
+        self.pruning = pruning
+        self.post_pruning = post_pruning
         self.n_classes = None  # Need to update via run()
         self.n_samples = None  # Need to update via run()
         self.n_features = None  # Need to update via run()
         self.results = None  # Need to update via run()
 
     def _get_filename(self, extension: str, gini_factor: float = None, gamma_factor: float = None,
-                      sub_folder=None, iteration=None) -> str:
+                      sub_folder=None) -> str:
         """
             Get filename to save result
         """
         folder = f"{self.results_folder}/{sub_folder}" if sub_folder else f"{self.results_folder}"
         filename = f"{folder}/{self.dataset_name}_{self.classifier.__name__}_depth_{self.max_depth_stop}" \
-                   f"_samples_{self.min_samples_stop}_samples-frac_{self.min_samples_frac}"
+                   f"_samples_{self.min_samples_stop}_samples-frac_{self.min_samples_frac}_" \
+                   f"pruning_{self.pruning}_post-pruning_{self.post_pruning}"
         if gini_factor:
             filename += f"_gini-factor_{gini_factor}"
         if gamma_factor:
             filename += f"_gamma_{round(gamma_factor, 2)}"
-        if iteration:
-            filename += f"_iteration_{iteration}"
+        if self.iteration is not None:
+            filename += f"_iteration_{self.iteration}"
 
         filename += f".{extension}"
         return filename
 
-    def _plot_graphic(self):
-        """
-            Plot graphic for tests
-        """
-        factors = [metric[MetricType.gini_factor] for metric in self.results]
-        train_accuracy_list = [metric[MetricType.train_accuracy] for metric in self.results]
-        test_accuracy_list = [metric[MetricType.test_accuracy] for metric in self.results]
-        max_depth_list = [metric[MetricType.max_depth] for metric in self.results]
-        max_depth_redundant_list = [metric[MetricType.max_depth_redundant] for metric in self.results]
-        wad_list = [metric[MetricType.wad] for metric in self.results]
-        waes_list = [metric[MetricType.waes] for metric in self.results]
-
-        figure(figsize=(12, 10), dpi=300)
-        plt.subplot(2, 1, 1)
-        dataset_name = self.dataset_name
-        plt.title(dataset_name, fontsize=16)
-        plt.plot(factors, train_accuracy_list, label="Train Accuracy", color='red', marker='o')
-        plt.plot(factors, test_accuracy_list, label="Test Accuracy", color='darkred', marker='o')
-        plt.ylabel("Accuracy", fontsize=16)
-        plt.legend(loc="lower right", fontsize=10)
-
-        plt.subplot(2, 1, 2)
-        plt.plot(factors, max_depth_list, label="Max Depth", color='cyan', marker='o')
-        plt.plot(factors, max_depth_redundant_list, label="Redundant Max Depth", color='blue', marker='o')
-        plt.plot(factors, wad_list, label="WAD (Weighted Average Depth", color='gray', marker='o')
-        plt.plot(factors, waes_list, label="WAES (Weighted Average Explanation Size)", color='black', marker='o')
-        plt.xlabel("Gini Factor", fontsize=16)
-        plt.ylabel("Metric", fontsize=16)
-        plt.legend(loc="lower right", fontsize=10)
-        filename = self._get_filename("png", sub_folder="img")
-        plt.savefig(filename)
-
-    def _store_results(self, iteration=0):
+    def _store_results(self):
         """
             Store results in json for iteration
         """
-        filename: str = self._get_filename("json", sub_folder="json", iteration=iteration)
+        filename: str = self._get_filename("json", sub_folder="json")
         result_json = {
             'dataset': self.dataset_name,
             'algorithm': self.classifier.__name__,
@@ -206,41 +177,12 @@ class Test:
             'n_classes': self.n_classes,
             'max_depth_stop': self.max_depth_stop,
             'min_samples_stop': self.min_samples_stop,
-            # 'opt_factor': self._get_opt_factor(),
             'results': [{key.value: metric[key] for key in metric} for metric in self.results]  # Convert to string keys
         }
         # Create dir if not exists
         create_dir(filename)
         with open(filename, 'w') as f:
             json.dump(result_json, f, indent=2)
-
-    def _get_opt_factor(self, opt_factor=0.90):
-        """
-        Get the lower factor that allow a decreasing in test_accuracy not lower than opt_factor.
-        Also, get the diff compared to original values (factor=1) in percentage
-        """
-        # Assume that results are ordered by increasing factors
-        reversed_results = sorted(self.results, key=lambda x: x[MetricType.gini_factor], reverse=True)
-        max_test_accuracy = reversed_results[0][MetricType.test_accuracy]
-
-        max_metrics = reversed_results[0]
-
-        opt_index = -1
-        for i in range(1, len(reversed_results)):
-            if reversed_results[i][MetricType.test_accuracy] <= opt_factor * max_test_accuracy:
-                opt_index = i - 1
-                break
-        opt_metrics = reversed_results[opt_index]
-
-        diff_results = dict()
-        for key in max_metrics:
-            if key == MetricType.gini_factor:
-                diff_results[key.value] = opt_metrics[key]
-            else:
-                diff_metric = round(100 * (opt_metrics[key] - max_metrics[key]) / max_metrics[key])
-                diff_results[key.value] = str(diff_metric) + "%"
-
-        return diff_results
 
     def parse_dataset(self):
         """
@@ -275,17 +217,18 @@ class Test:
             Create train and test sets
         """
         X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=random_state, train_size=train_size)
-        return X_train, X_test, y_train, y_test
+        X_test, X_val, y_test, y_val = train_test_split(X_test, y_test, random_state=random_state, train_size=0.5)
+        return X_train, X_val, X_test, y_train, y_val, y_test
 
-    def run(self, store_results=True, plot_graphic=False, debug=False, iteration=0, pruning=True):
+    def run(self, store_results=True, debug=False):
         """ Run the tests and store results"""
 
         print("\n#######################################################################")
         print(f"### Running tests for {self.dataset_name} with {self.classifier.__name__}, "
               f"max_depth {self.max_depth_stop}, min_samples_stop {self.min_samples_stop}, "
               f"min_samples_frac {self.min_samples_frac}")
-        if iteration:
-            print("Iteration", iteration)
+        if self.iteration:
+            print("Iteration", self.iteration)
 
         # Read CSV
         X, y = self.parse_dataset()
@@ -295,7 +238,7 @@ class Test:
         self.n_classes = len(set(y))
 
         # Training Models
-        X_train, X_test, y_train, y_test = self.split_train_test(X, y, random_state=iteration)
+        X_train, X_val, X_test, y_train, y_val, y_test = self.split_train_test(X, y, random_state=self.iteration)
 
         results = []
         for gini_factor in self.gini_factors:
@@ -304,20 +247,16 @@ class Test:
                 initial_time = perf_counter_ns()
                 dt = self.classifier(max_depth=self.max_depth_stop, min_samples_stop=self.min_samples_stop)
                 score_train, score_test = dt.get_score(X_train, y_train, X_test, y_test, modified_factor=gini_factor,
-                                                       gamma_factor=gamma_factor, pruning=pruning)
+                                                       gamma_factor=gamma_factor, pruning=self.pruning,
+                                                       post_pruning=self.post_pruning,
+                                                       X_val=X_val, y_val=y_val)
                 unbalanced_splits, max_depth, max_depth_redundant, wad, waes, nodes, features = \
                     dt.get_explainability_metrics()
                 final_time = perf_counter_ns()
                 execution_time = round((final_time - initial_time) / 1e9, 4)
                 if debug:
-                    # dt.tree_.debug(
-                    #     feature_names=["Attribute {}".format(i) for i in range(len(X_train))],
-                    #     class_names=["Class {}".format(i) for i in range(len(y_train))],
-                    #     show_details=True
-                    # )
                     tree_img_file = self._get_filename(extension="png", gini_factor=gini_factor,
-                                                       gamma_factor=gamma_factor, sub_folder="img",
-                                                       iteration=iteration)
+                                                       gamma_factor=gamma_factor, sub_folder="img")
                     dt.tree_.debug_pydot(tree_img_file)
                 print(f"\nTrain/test accuracy for gini factor {gini_factor} and gamma {gamma_factor}: "
                       f"{score_train}, {score_test}")
@@ -336,24 +275,21 @@ class Test:
                 # Save Tree objects
                 if store_results:
                     pickle_name = self._get_filename(extension="pickle", gini_factor=gini_factor,
-                                                     gamma_factor=gamma_factor, sub_folder="pickle",
-                                                     iteration=iteration)
+                                                     gamma_factor=gamma_factor, sub_folder="pickle")
                     create_dir(pickle_name)
                     with open(pickle_name, 'wb') as handle:
                         pickle.dump(dt.tree_, handle)
 
         self.results = results
-        if plot_graphic:
-            self._plot_graphic()
         if store_results:
-            self._store_results(iteration=iteration)
+            self._store_results()
 
         print(f"\n### Ended tests for {self.dataset_name} with with {self.classifier.__name__}, "
               f"max_depth {self.max_depth_stop}, min_samples_stop {self.min_samples_stop}\n")
 
     @staticmethod
     def load_test_from_pickle(pickle_filepath, csv_file=None, col_class_name=None, cols_to_delete=None,
-                              results_folder="results"):
+                              results_folder="results", pruning=True, post_pruning=False):
         """
             Load test from pickle file
         """
@@ -363,13 +299,18 @@ class Test:
         dataset = pickle_info[0]
         algorithm = pickle_info[1]
         depth_index = pickle_info.index("depth")
-        max_depth_stop = int(pickle_info[depth_index + 1])
+        try:
+            max_depth_stop = int(pickle_info[depth_index + 1])
+        except ValueError:
+            # In case of math.inf
+            max_depth_stop = float(pickle_info[depth_index + 1])
+
         min_samples_stop_index = int(pickle_info.index("samples"))
         min_samples_stop = pickle_info[min_samples_stop_index + 1]
         gini_factor_index = pickle_info.index("gini-factor")
         gini_factor = float(pickle_info[gini_factor_index + 1])
         iteration_index = pickle_info.index("iteration")
-        iteration = float(pickle_info[iteration_index + 1])
+        iteration = int(pickle_info[iteration_index + 1])
         try:
             gamma_factor_index = pickle_info.index("gamma")
             gamma = float(pickle_info[gamma_factor_index + 1])
@@ -390,6 +331,6 @@ class Test:
             test = Test(classifier=clf, dataset_name=dataset, csv_file=csv_file,
                         max_depth_stop=max_depth_stop, col_class_name=col_class_name, cols_to_delete=cols_to_delete,
                         min_samples_stop=min_samples_stop, gini_factors=[gini_factor], gamma_factors=[gamma],
-                        results_folder=results_folder)
+                        results_folder=results_folder, iteration=iteration, pruning=pruning, post_pruning=post_pruning)
             test.clf_obj = clf_obj
-            return test, iteration
+            return test

@@ -1,10 +1,9 @@
 """
     Main file to run tests
 """
+import copy
 import csv
 import json
-import math
-import matplotlib.pyplot as plt
 import numpy as np
 from os import listdir
 from os.path import isfile, join
@@ -45,54 +44,6 @@ def change_all_jsons(results_folder):
         print("Changed file:", file)
 
 
-def plot_opt_table(bins=False):
-    """
-    Compares metrics between datasets
-    """
-    files = [f for f in listdir(RESULTS_FOLDER) if isfile(join(RESULTS_FOLDER, f))]
-    json_files = [f for f in files if 'json' in f]
-
-    diff_data = []
-    cols = [MetricType.gini_factor.value, MetricType.train_accuracy.value, MetricType.test_accuracy.value,
-            MetricType.max_depth.value, MetricType.max_depth_redundant.value, MetricType.wad.value,
-            MetricType.waes.value]
-    rows = []
-    for file in json_files:
-        with open(f"{RESULTS_FOLDER}/{file}") as json_file:
-            file_data = json.load(json_file)
-            if file_data['bins'] is not bins:
-                # Wrong file regarding bins
-                continue
-
-            # Get the only result
-            opt_dict = file_data['opt_factor']
-            rows.append(file_data['dataset'])
-            diff_data.append([opt_dict[col] for col in cols])
-
-    # Sort by waes
-    # int(x[1][-1][:-2]) converts waes to int without the % symbol
-    rows, diff_data = zip(*sorted(zip(rows, diff_data), key=lambda x: int(x[1][-1][:-1])))
-
-    # Plot Table
-    plt.rcParams["figure.figsize"] = [14, 12]
-    plt.rcParams["figure.autolayout"] = True
-    fig, ax = plt.subplots()
-    ax.axis('tight')
-    ax.axis('off')
-    table = ax.table(
-        cellText=diff_data,
-        rowLabels=rows,
-        colLabels=cols,
-        rowColours=["palegreen"] * 10,
-        colColours=["palegreen"] * 10,
-        cellLoc='center',
-        loc='upper left')
-    table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    ax.set_title(f'Metric diffs with bins = {bins}', fontsize=14)
-    plt.savefig(f"{RESULTS_FOLDER}/metric_diffs_bins_{bins}.png", dpi=300)
-
-
 def create_bins(csv_file, bins=10, cols_to_remove=None):
     """
         Discretize dataset
@@ -115,29 +66,45 @@ def create_bins(csv_file, bins=10, cols_to_remove=None):
     data.to_csv(outfile, encoding='utf-8', index=None)
 
 
-def save_pruned_trees(pickle_dir, pruned_dir):
+def save_pruned_trees(pickle_dir, ds_by_name, pruned_dir, pickle_file=None, pruning=True, post_pruning=False):
     """
         Save pruned trees
     """
-    files = [f for f in listdir(pickle_dir) if isfile(join(pickle_dir, f))]
-    pickle_files = [f for f in files if 'pickle' in f]
+    if not pickle_file:
+        files = [f for f in listdir(pickle_dir) if isfile(join(pickle_dir, f))]
+        pickle_files = sorted([f for f in files if 'pickle' in f])
+    else:
+        pickle_files = [pickle_file]
+
     for pickle_filename in pickle_files:
         print(f"### Punning tree {pickle_filename}")
-        test, _ = Test.load_test_from_pickle(f"{pickle_dir}/{pickle_filename}")
+        test = Test.load_test_from_pickle(f"{pickle_dir}/{pickle_filename}")
+        test.csv_file = ds_by_name[test.dataset_name]['csv']
+        test.col_class_name = ds_by_name[test.dataset_name]['col_class']
         clf_obj = test.clf_obj
         tree_obj: Node = clf_obj.tree_
-        pruned_tree = tree_obj.get_pruned_tree()
+        pruned_tree = copy.deepcopy(tree_obj)
+        if pruning:
+            pruned_tree = tree_obj.get_pruned_tree()
+        if post_pruning:
+            X, y = test.parse_dataset()
+            X_train, X_val, X_test, y_train, y_val, y_test = test.split_train_test(X, y, random_state=test.iteration)
+            pruned_tree = clf_obj.get_post_pruned_tree(X_val, y_val)
         pruned_filepath = f"{pruned_dir}/{pickle_filename}"
         create_dir(pruned_filepath)
         with open(pruned_filepath, 'wb') as handle:
             pickle.dump(pruned_tree, handle)
 
 
-def generate_consolidates_csv(csv_file, result_dir, load_from="json", ds_by_name: dict = None):
+def generate_consolidates_csv(csv_file, result_dir, filename=None, load_from="json", ds_by_name: dict = None,
+                              pruning=True, post_pruning=False):
     """
         Generates consolidate csv with all metrics for datasets
     """
-    files = [f for f in listdir(result_dir) if isfile(join(result_dir, f))]
+    if not filename:
+        files = [f for f in listdir(result_dir) if isfile(join(result_dir, f))]
+    else:
+        files = [filename]
     test_info_header = ResultJson.get_cols()
     metrics_header = Metrics.get_cols()
     header = test_info_header + metrics_header
@@ -162,21 +129,22 @@ def generate_consolidates_csv(csv_file, result_dir, load_from="json", ds_by_name
         pickle_files = sorted(pickle_files)
         rows = []
         for pickle_filename in pickle_files:
-            test, iteration = Test.load_test_from_pickle(f"{result_dir}/{pickle_filename}")
+            test = Test.load_test_from_pickle(f"{result_dir}/{pickle_filename}", pruning=pruning,
+                                              post_pruning=post_pruning)
             test.csv_file = ds_by_name[test.dataset_name]['csv']
             test.col_class_name = ds_by_name[test.dataset_name]['col_class']
             clf_obj = test.clf_obj
             tree_obj = clf_obj.tree_
             num_features = len(tree_obj.feature_index_occurrences)
             clf_name = clf_obj.__class__.__name__
-            pickle_info = pickle_filename.replace(".pickle", "").split("_")
             print(f"### Generating results for {test.dataset_name} with {clf_name}, "
                   f"max_depth {test.max_depth_stop}, min_samples_stop {test.min_samples_stop}, "
                   f"min_samples_frac {test.min_samples_frac}, "
-                  f"gini factor {test.gini_factors[0]}, gamma {test.gamma_factors[0]} and iteration {iteration}")
+                  f"gini factor {test.gini_factors[0]}, gamma {test.gamma_factors[0]}, "
+                  f"post pruning {test.post_pruning}  and iteration {test.iteration}")
 
             X, y = test.parse_dataset()
-            X_train, X_test, y_train, y_test = test.split_train_test(X, y, random_state=iteration)
+            X_train, X_val, X_test, y_train, y_val, y_test = test.split_train_test(X, y, random_state=test.iteration)
             score_train, score_test = clf_obj.get_score_without_fit(X_train, y_train, X_test, y_test)
             metrics = tree_obj.get_explainability_metrics(num_features)
             row = [test.dataset_name, clf_name, test.max_depth_stop, test.min_samples_stop, test.gini_factors[0],
@@ -289,7 +257,7 @@ if __name__ == "__main__":
     depths = [6]
     min_samples_list = [0]
     min_samples_frac_list = [None]
-    iterations = range(1, 2)
+    iterations = range(1, 11)
 
     # Run tests
     for it in iterations:
@@ -301,31 +269,31 @@ if __name__ == "__main__":
                         # Cols to deleted was already deleted
                         test1 = Test(classifier=Cart, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
                                      col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
-                                     min_samples_frac=min_samples_frac,
+                                     min_samples_frac=min_samples_frac, iteration=it,
                                      results_folder="results/cart", gamma_factors=[None], gini_factors=[1])
                         test2 = Test(classifier=AlgoWithGini, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
                                      col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
-                                     min_samples_frac=min_samples_frac,
-                                     results_folder="results/algo_gini", gamma_factors=[0.5], gini_factors=[0.99])
-                        test3 = Test(classifier=AlgoInfoGain, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
-                                     col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
-                                     min_samples_frac=min_samples_frac,
-                                     results_folder="results/algo_info_gain", gamma_factors=[0.5], gini_factors=[0.97])
-                        test4 = Test(classifier=C45, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
-                                     col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
-                                     min_samples_frac=min_samples_frac,
-                                     results_folder="results/c45", gamma_factors=[None], gini_factors=[1])
-                        test5 = Test(classifier=EC2, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
-                                     col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
-                                     min_samples_frac=min_samples_frac,
-                                     results_folder="results/ec2", gamma_factors=[None], gini_factors=[1])
+                                     min_samples_frac=min_samples_frac, iteration=it,
+                                     results_folder="results/algo_gini", gamma_factors=[0.5], gini_factors=[0.97])
+                        # test3 = Test(classifier=AlgoInfoGain, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
+                        #              col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
+                        #              min_samples_frac=min_samples_frac, iteration=it,
+                        #              results_folder="results/algo_info_gain", gamma_factors=[0.5], gini_factors=[0.97])
+                        # test4 = Test(classifier=C45, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
+                        #              col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
+                        #              min_samples_frac=min_samples_frac, iteration=it,
+                        #              results_folder="results/c45", gamma_factors=[None], gini_factors=[1])
+                        # test5 = Test(classifier=EC2, dataset_name=ds[0], csv_file=ds[1], max_depth_stop=depth,
+                        #              col_class_name=ds[2], cols_to_delete=[], min_samples_stop=min_samples_stop,
+                        #              min_samples_frac=min_samples_frac, iteration=it,
+                        #              results_folder="results/ec2", gamma_factors=[None], gini_factors=[1])
 
-                        # test1.run(debug=True, iteration=it, pruning=True)
-                        # test2.run(debug=False, iteration=it, pruning=True)
-                        # test3.run(debug=False, iteration=it, pruning=True)
-                        # test4.run(debug=False, iteration=it, pruning=True)
-                        test5.run(debug=True, iteration=it, pruning=False)
-
+                        # test1.run(debug=True)
+                        # test2.run(debug=False)
+                        # test3.run(debug=False)
+                        # test4.run(debug=False)
+                        # test5.run(debug=True)
+                        #
     datasets_by_name = {
         ds[0]: {
             "csv": ds[1],
@@ -347,8 +315,18 @@ if __name__ == "__main__":
     # Pickle
     # generate_consolidates_csv("results/consolidated/cart_experiments.csv", "results/cart/pickle",
     #                           load_from="pickle", ds_by_name=datasets_by_name)
+    # filename = "obs network_AlgoWithGini_depth_6_samples_0_gini-factor_0.94_gamma_0.5_iteration_3.pickle"
     # generate_consolidates_csv("results/consolidated/algo_gini_experiments.csv", "results/algo_gini/pickle",
-    #                           load_from="pickle", ds_by_name=datasets_by_name)
-
-    # plot_opt_table(bins=False)
-    # plot_opt_table(bins=True)
+    #                           filename=filename, load_from="pickle", ds_by_name=datasets_by_name, post_pruning=False)
+    # generate_consolidates_csv("results/consolidated/algo_gini_experiments_post_pruned.csv", "results/algo_gini/pickle_post_pruned",
+    #                           filename=filename, load_from="pickle", ds_by_name=datasets_by_name, post_pruning=True)
+    #
+    # Save Pickes
+    save_pruned_trees("results/algo_gini/pickle", datasets_by_name, "results/algo_gini/pickle_post_pruned",
+                      post_pruning=True)
+    # save_pruned_trees("results/cart/pickle", datasets_by_name, "results/cart/pickle_post_pruned",
+    #                   post_pruning=True)
+    # save_pruned_trees("results/algo_gini/pickle", datasets_by_name, "results/algo_gini/pickle_post_pruned",
+    #                   pickle_file="obs network_AlgoWithGini_depth_6_samples_0_gini-factor_0.94_gamma_0.5_iteration_3.pickle",
+    #                   pruning=False,
+    #                   post_pruning=True)
