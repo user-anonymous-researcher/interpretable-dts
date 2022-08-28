@@ -2,9 +2,11 @@
     Base Algorithm to derive others
 """
 import copy
-
 import numpy as np
 import tree.tree as tree
+from typing import Dict, Any
+
+from experiments.models import MetricType
 
 
 class DefaultClassifier:
@@ -85,9 +87,9 @@ class DefaultClassifier:
         else:
             return None, round(self.score(X_test, y_test), 3)
 
-    def get_explainability_metrics(self):
+    def get_explainability_metrics(self) -> Dict[MetricType, Any]:
         """
-        Get exaplanaibility metrics
+        Get explanaibility metrics
         """
         # Returns unbalanced_splits, max_depth, max_depth_redundant, wad, waes, nodes, distinct features
         return self.tree_.get_explainability_metrics(self.n_features_)

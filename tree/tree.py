@@ -3,9 +3,11 @@
 """
 import copy
 import dot2tex as d2t
+from experiments.models import MetricType
 from pathlib import Path
 import pydot
 import subprocess
+from typing import Dict, Any
 
 from utils.random import COLOR_LIST
 
@@ -220,15 +222,15 @@ class Node:
         subprocess.run(["convert", "-density", "300", f"{output_file}.pdf", "-quality", "100",
                         output_file])
 
-    def get_explainability_metrics(self, num_features):
+    def get_explainability_metrics(self, num_features) -> Dict[MetricType, Any]:
         """
             Get explainability metrics.
             Returns:
-            number of unbalanced nodes, max_depth, max_redundant_depth, wad, waes, nodes and distinct_features
+            number of unbalanced nodes, max_depth, max_redundant_depth, depth_avg, expl_avg, nodes and distinct_features
 
         """
-        wad_by_node = []  # Weighted Path by leaf. List of pairs (depth, num_samples)
-        waes_by_node = []  # Same as wad_by_node but discarding redundant features
+        depth_avg_by_node = []  # Weighted Path by leaf. List of pairs (depth, num_samples)
+        expl_avg_by_node = []  # Same as depth_avg_by_node but discarding redundant features
         nodes_number_metric = [0]
         features_distinct_metric = [0] * num_features
         unbalanced_splits = [0]
@@ -257,8 +259,8 @@ class Node:
                 depth = node.get_node_depth()
                 redundant_depth = node.get_node_explainability()
                 num_samples = node.num_samples
-                wad_by_node.append((depth, num_samples))
-                waes_by_node.append((redundant_depth, num_samples))
+                depth_avg_by_node.append((depth, num_samples))
+                expl_avg_by_node.append((redundant_depth, num_samples))
 
             if left_node:
                 next_index_occurs = node.get_next_feature_occurrences_redundant(node.feature_index, 'left')
@@ -278,26 +280,34 @@ class Node:
                    nodes_number_metric, features_distinct_metric, unbalanced_splits)
 
         # Calculate metrics
-        max_depth = max(x[0] for x in wad_by_node)
-        max_redundant_depth = max(x[0] for x in waes_by_node)
+        depth_wc = max(x[0] for x in depth_avg_by_node)
+        expl_wc = max(x[0] for x in expl_avg_by_node)
 
-        total_samples = sum(x[1] for x in wad_by_node)
-        wad_sum = 0
-        for p in wad_by_node:
-            wad_sum += p[0] * p[1]
-        wad = wad_sum / total_samples
-        wad = round(wad, 3)
+        total_samples = sum(x[1] for x in depth_avg_by_node)
+        depth_avg_sum = 0
+        for p in depth_avg_by_node:
+            depth_avg_sum += p[0] * p[1]
+        depth_avg = depth_avg_sum / total_samples
+        depth_avg = round(depth_avg, 3)
 
-        waes_sum = 0
-        for p in waes_by_node:
-            waes_sum += p[0] * p[1]
-        waes = waes_sum / total_samples
-        waes = round(waes, 3)
+        expl_avg_sum = 0
+        for p in expl_avg_by_node:
+            expl_avg_sum += p[0] * p[1]
+        expl_avg = expl_avg_sum / total_samples
+        expl_avg = round(expl_avg, 3)
 
         nodes = nodes_number_metric[0]
         unbalanced = unbalanced_splits[0]
         distinct_features = sum(features_distinct_metric)
-        return unbalanced, max_depth, max_redundant_depth, wad, waes, nodes, distinct_features
+        return {
+            MetricType.unbalanced_splits: unbalanced,
+            MetricType.depth_wc: depth_wc,
+            MetricType.expl_wc: expl_wc,
+            MetricType.depth_avg: depth_avg,
+            MetricType.expl_avg: expl_avg,
+            MetricType.nodes: nodes,
+            MetricType.features: distinct_features
+        }
 
     def get_pruned_tree(self):
         """

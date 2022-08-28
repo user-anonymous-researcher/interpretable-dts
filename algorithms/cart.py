@@ -8,7 +8,7 @@ from algorithms.default_algorithm import DefaultClassifier
 from tree import tree
 
 
-class Cart(DefaultClassifier):
+class CART(DefaultClassifier):
     def __init__(self, max_depth=None, min_samples_stop=0):
         super().__init__(max_depth, min_samples_stop)
 

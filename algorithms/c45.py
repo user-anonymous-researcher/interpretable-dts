@@ -5,10 +5,10 @@
 import math
 import numpy as np
 
-from algorithms.cart import Cart
+from algorithms.cart import CART
 
 
-class C45(Cart):
+class C45(CART):
     def __init__(self, max_depth=None, min_samples_stop=0):
         super().__init__(max_depth, min_samples_stop)
 

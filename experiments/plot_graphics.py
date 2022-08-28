@@ -85,8 +85,8 @@ def plot_trees(results_dir, pickle_filename=None, pickle_dir=None, post_pruned=F
             test.post_pruning = False
             sub_folder = "img"
 
-        tree_img_file = test._get_filename(extension="png", gini_factor=test.gini_factors[0],
-                                           gamma_factor=test.gamma_factors[0], sub_folder=sub_folder)
+        tree_img_file = test._get_filename(extension="png", gini_factor=test.gini_factor[0],
+                                           gamma_factor=test.gamma_factor[0], sub_folder=sub_folder)
         test.clf_obj.tree_.debug_pydot(tree_img_file)
         print("---------")
 

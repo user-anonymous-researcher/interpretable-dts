@@ -4,12 +4,12 @@
 import numpy as np
 import math
 
-from algorithms.cart import Cart
-from algorithms.algo import Algo
+from algorithms.cart import CART
+from algorithms.serdt_base import SERDTBase
 from tree import tree
 
 
-class CartPairs(Cart, Algo):
+class CARTPairs(CART, SERDTBase):
     def __init__(self, max_depth=None, min_samples_stop=0):
         super().__init__(max_depth, min_samples_stop)
 
@@ -45,7 +45,7 @@ class CartPairs(Cart, Algo):
         """Find the best split for a node.
 
         "Best" means that the average impurity of the two children, weighted by their
-        population, is the smallest possible. Additionally it must be less than the
+        population, is the smallest possible. Additionally, it must be less than the
         impurity of the current node.
 
         To find the best split, we loop through all the features, and consider all the
